@@ -9,7 +9,7 @@ import sys
 
 
 model_store = {}
-lookback_store = {}
+lookback_store = {} 
 prev_timestep_store = {}
 error_rv_store = {}
 num_anamolous_timesteps_store = {}
@@ -59,6 +59,9 @@ def predict_timestamp(previous_timesteps, actual, model_name, look_back, error_r
     
     return prediction, normal_prob
 
+@app.route('/models', methods=['GET'])
+def list_models():
+    return jsonify(list(model_store.keys()))
 
 @app.route("/report", methods=['POST'])
 def report():
