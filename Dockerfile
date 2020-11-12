@@ -4,8 +4,7 @@ RUN pip install keras flask gunicorn
 
 RUN mkdir /app
 COPY anomaly_service.py /app 
-COPY logs.h5 /app
-COPY logs.pkl /app
+COPY all_models.pkl /app
 
 WORKDIR /app
 
