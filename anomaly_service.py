@@ -68,18 +68,18 @@ def list_models():
 def handle_single_report(json_object):
     msg, code = '', 200
 
-    if not 'eventCount' in json_object or not 'modelName' in json_object:
-        return ('Missing eventCount or modelName keys', 400)
+    if not 'count' in json_object or not 'name' in json_object:
+        return ('Missing count or name keys', 400)
 
     id_value = None
     if 'id' in json_object:
         id_value = json_object['id']
 
-    event_count = json_object['eventCount']
+    event_count = json_object['count']
     anomaly_threshold = 0.03
     if 'anomalyThreshold' in json_object:
         anomaly_threshold = float(json_object['anomalyThreshold'])
-    model_name = json_object['modelName']
+    model_name = json_object['name']
 
 
     if model_name not in model_store.keys():
@@ -123,7 +123,7 @@ def handle_single_report(json_object):
 
     if id_value:
         msg['id'] = id_value
-    msg['modelName'] = model_name
+    msg['name'] = model_name
 
     return msg, code
 
