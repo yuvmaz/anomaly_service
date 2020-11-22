@@ -65,56 +65,94 @@ def predict_timestamp(previous_timesteps, actual, model_name, look_back, error_r
 def list_models():
     return jsonify(list(model_store.keys()))
 
+def handle_single_report(json_object):
+    msg, code = '', 200
+
+    if not 'eventCount' in json_object or not 'modelName' in json_object:
+        return ('Missing eventCount or modelName keys', 400)
+
+    id_value = None
+    if 'id' in json_object:
+        id_value = json_object['id']
+
+    event_count = json_object['eventCount']
+    anomaly_threshold = 0.03
+    if 'anomalyThreshold' in json_object:
+        anomaly_threshold = float(json_object['anomalyThreshold'])
+    model_name = json_object['modelName']
+
+
+    if model_name not in model_store.keys():
+        msg = { 
+                "msg": "Unknown model {}".format(model_name)
+              }
+        code = 400
+
+    else:
+        previous_timesteps = prev_timestep_store[model_name]
+        look_back = lookback_store[model_name]
+        error_rv = error_rv_store[model_name]
+
+        if len(previous_timesteps) < look_back:
+            msg = {
+                        "msg": "More data needed, currently have {} items".format(len(previous_timesteps))
+                  }
+            code = 201
+
+
+        else:
+            code = 200
+
+            predicted_event_count, prob_normal_behavior = \
+                    predict_timestamp(np.log(previous_timesteps), np.log(event_count), model_name, look_back, \
+                                        error_rv)
+
+            if prob_normal_behavior < anomaly_threshold:
+                num_anamolous_timesteps_store[model_name] += 1
+            else:
+                num_anamolous_timesteps_store[model_name] = 0
+
+            msg = {
+                    "predictedEventCount":  int(np.exp(predicted_event_count)), 
+                    "probNormalBehavior": "{:.5f}".format(prob_normal_behavior),
+                    "numAnomalousTimesteps": int(num_anamolous_timesteps_store[model_name]),
+                   }
+
+        prev_timestep_store[model_name].insert(0, event_count)
+        prev_timestep_store[model_name] = prev_timestep_store[model_name][0:look_back]
+
+    if id_value:
+        msg['id'] = id_value
+    return msg, code
+
+
+
+MSG = 0
+CODE = 1
+
 @app.route("/report", methods=['POST'])
 def report():
     try:
-
-        if not request.json or not 'eventCount' in request.json or not 'modelName' in request.json:
-            abort(400)
-
-        event_count = request.json['eventCount']
-        anomaly_threshold = 0.03
-        if 'anomalyThreshold' in request.json:
-            anomaly_threshold = float(request.json['anomalyThreshold'])
-        model_name = request.json['modelName']
-
-        if model_name not in model_store.keys():
-            msg = "Unknown model {}".format(model_name)
-            code = 400
+        calls = None 
+        responses = []
+        
+        if type(request.json) is dict:
+            calls = [request.json]
+        elif type(request.json) is list:
+            calls = request.json
         else:
-            previous_timesteps = prev_timestep_store[model_name]
-            look_back = lookback_store[model_name]
-            error_rv = error_rv_store[model_name]
+            return "Cannot handle data format of type {}".format(type(request.json)), 400
 
-            if len(previous_timesteps) < look_back:
-                msg = "More data needed, currently have {} items".format(len(previous_timesteps))
-                code = 201
-            else:
-                code = 200
+        for this_call in calls:
+            msg, code = handle_single_report(this_call)
+            responses.append((msg, code))
 
-                predicted_event_count, prob_normal_behavior = \
-                        predict_timestamp(np.log(previous_timesteps), np.log(event_count), model_name, look_back, \
-                                            error_rv)
-
-                if prob_normal_behavior < anomaly_threshold:
-                    num_anamolous_timesteps_store[model_name] += 1
-                else:
-                    num_anamolous_timesteps_store[model_name] = 0
-
-
-                msg = jsonify(
-                               {
-                                    "predictedEventCount":  int(np.exp(predicted_event_count)), 
-                                    "probNormalBehavior": "{:.5f}".format(prob_normal_behavior),
-                                    "numAnomalousTimesteps": int(num_anamolous_timesteps_store[model_name]),
-                               }
-                             )
-
-            prev_timestep_store[model_name].insert(0, event_count)
-            prev_timestep_store[model_name] = prev_timestep_store[model_name][0:look_back]
+        if len(responses) == 1:
+            single_response = responses[0]
+            return single_response[MSG], single_response[CODE]
+        else:
+            return jsonify(responses), 200
 
     except:
-        msg = "Error: {}".format(sys.exc_info()[0])
-        code = 404
+        return "Error: {}".format(sys.exc_info()[0]), 400 
 
-    return msg, code
