@@ -123,6 +123,8 @@ def handle_single_report(json_object):
 
     if id_value:
         msg['id'] = id_value
+    msg['modelName'] = model_name
+
     return msg, code
 
 
