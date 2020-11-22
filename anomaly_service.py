@@ -41,9 +41,8 @@ app = Flask(__name__)
 def predict_timestamp(previous_timesteps, actual, model_name, look_back, error_rv):
 
     model = model_store[model_name]
-    previous_timesteps = np.array(prev_timestep_store[model_name])
+    previous_timesteps = np.array(prev_timestep_store[model_name], dtype=float)
     error_rv = error_rv_store[model_name]
-
 
     assert previous_timesteps is not None, "previous_timesteps must be provided"
     assert isinstance(actual, float), "Actual must be a float value"
@@ -53,9 +52,12 @@ def predict_timestamp(previous_timesteps, actual, model_name, look_back, error_r
 
     
     assert len(previous_timesteps) == look_back, "Length of timesteps must be equal to {}".format(look_back)
-   
-    prediction = model.predict(previous_timesteps.reshape((1,len(previous_timesteps),1))).flatten()[0]
-    normal_prob = 1 - error_rv.cdf(actual - prediction)
+
+    try:
+        prediction = model.predict(previous_timesteps.reshape((1,len(previous_timesteps),1))).flatten()[0]
+        normal_prob = 1 - error_rv.cdf(actual - prediction)
+    except Exception as e:
+        print(e)
     
     return prediction, normal_prob
 
@@ -88,11 +90,12 @@ def report():
                 msg = "More data needed, currently have {} items".format(len(previous_timesteps))
                 code = 201
             else:
-
                 code = 200
+
                 predicted_event_count, prob_normal_behavior = \
                         predict_timestamp(np.log(previous_timesteps), np.log(event_count), model_name, look_back, \
                                             error_rv)
+
                 if prob_normal_behavior < anomaly_threshold:
                     num_anamolous_timesteps_store[model_name] += 1
                 else:
