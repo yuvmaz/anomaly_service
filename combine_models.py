@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import keras
 import os 
 import glob
@@ -6,7 +8,7 @@ import pickle
 data = {}
 
 for hdf_file in glob.glob("*.h5"):
-    set_name, _ = hdf_file.split('.', 1)
+    set_name = hdf_file.replace('.h5', '')
     params_file = set_name + '.pkl'
     for this_file in [params_file]:
         if not os.path.exists(params_file):
