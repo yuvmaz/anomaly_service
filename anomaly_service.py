@@ -10,7 +10,6 @@ import sys
 
 model_store = {}
 lookback_store = {} 
-prev_timestep_store = {}
 error_rv_store = {}
 num_anamolous_timesteps_store = {}
 
@@ -28,7 +27,6 @@ for model_name in models_repr:
     model_store[model_name] = model
     model_info = this_model_repr[2]
     lookback_store[model_name] = model_info['look_back']
-    prev_timestep_store[model_name] = []
     error_rv_store[model_name] = t(model_info['nu'], model_info['mu'],model_info['sigma'])
     num_anamolous_timesteps_store[model_name] = 0
 
@@ -38,24 +36,19 @@ print("Stores ready")
 app = Flask(__name__)
 
 
-def predict_timestamp(previous_timesteps, actual, model_name, look_back, error_rv):
+def predict_timestamp(previous_timesteps, model_name, error_rv):
 
     model = model_store[model_name]
-    previous_timesteps = np.array(prev_timestep_store[model_name], dtype=float)
     error_rv = error_rv_store[model_name]
 
     assert previous_timesteps is not None, "previous_timesteps must be provided"
-    assert isinstance(actual, float), "Actual must be a float value"
     assert model is not None, "Model must be provided"
-    assert isinstance(look_back, int) and look_back > 0, "look_back must be and integer and > 0"
     assert error_rv is not None, "Error distribution must be provide"
 
-    
-    assert len(previous_timesteps) == look_back, "Length of timesteps must be equal to {}".format(look_back)
 
     try:
         prediction = model.predict(previous_timesteps.reshape((1,len(previous_timesteps),1))).flatten()[0]
-        normal_prob = 1 - error_rv.cdf(actual - prediction)
+        normal_prob = 1 - error_rv.cdf(previous_timesteps[-1] - prediction)
     except Exception as e:
         print(e)
     
@@ -75,7 +68,7 @@ def handle_single_report(json_object):
     if 'id' in json_object:
         id_value = json_object['id']
 
-    event_count = json_object['count']
+    event_counts = json_object['count']
     anomaly_threshold = 0.03
     if 'anomalyThreshold' in json_object:
         anomaly_threshold = float(json_object['anomalyThreshold'])
@@ -89,23 +82,21 @@ def handle_single_report(json_object):
         code = 400
 
     else:
-        previous_timesteps = prev_timestep_store[model_name]
         look_back = lookback_store[model_name]
         error_rv = error_rv_store[model_name]
 
-        if len(previous_timesteps) < look_back:
+        if len(event_counts) < look_back:
             msg = {
-                        "msg": "More data needed, currently have {} items".format(len(previous_timesteps))
+                        "msg": "Not enough data, at least {} counts required".format(look_back)
                   }
-            code = 201
+            code = 400 
 
 
         else:
             code = 200
-
+            previous_timesteps = np.array(event_counts[-look_back:], dtype=float)
             predicted_event_count, prob_normal_behavior = \
-                    predict_timestamp(np.log(previous_timesteps), np.log(event_count), model_name, look_back, \
-                                        error_rv)
+                    predict_timestamp(np.log(previous_timesteps), model_name, error_rv)
 
             if prob_normal_behavior < anomaly_threshold:
                 num_anamolous_timesteps_store[model_name] += 1
@@ -117,9 +108,6 @@ def handle_single_report(json_object):
                     "probNormalBehavior": "{:.5f}".format(prob_normal_behavior),
                     "numAnomalousTimesteps": int(num_anamolous_timesteps_store[model_name]),
                    }
-
-        prev_timestep_store[model_name].insert(0, event_count)
-        prev_timestep_store[model_name] = prev_timestep_store[model_name][0:look_back]
 
     if id_value:
         msg['id'] = id_value
