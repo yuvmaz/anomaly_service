@@ -6,6 +6,7 @@ from scipy.stats import t
 from keras.models import model_from_json
 import numpy as np
 import sys
+import traceback
 
 
 model_store = {}
@@ -45,7 +46,6 @@ def predict_timestamp(previous_timesteps, model_name, error_rv):
     assert model is not None, "Model must be provided"
     assert error_rv is not None, "Error distribution must be provide"
 
-
     try:
         prediction = model.predict(previous_timesteps.reshape((1,len(previous_timesteps),1))).flatten()[0]
         normal_prob = 1 - error_rv.cdf(previous_timesteps[-1] - prediction)
@@ -69,9 +69,13 @@ def handle_single_report(json_object):
         id_value = json_object['id']
 
     event_counts = json_object['count']
+    if type(event_counts) == float or type(event_counts) == int:
+        event_counts = [event_counts]
+
     anomaly_threshold = 0.03
     if 'anomalyThreshold' in json_object:
         anomaly_threshold = float(json_object['anomalyThreshold'])
+
     model_name = json_object['name']
 
 
