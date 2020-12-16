@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from flask import Flask, jsonify, request, abort
-from pickle import load 
+from pickle import load
 from scipy.stats import t
 from keras.models import model_from_json
 import numpy as np
@@ -10,7 +10,7 @@ import traceback
 
 
 model_store = {}
-lookback_store = {} 
+lookback_store = {}
 error_rv_store = {}
 num_anamolous_timesteps_store = {}
 
@@ -51,7 +51,7 @@ def predict_timestamp(previous_timesteps, model_name, error_rv):
         normal_prob = 1 - error_rv.cdf(previous_timesteps[-1] - prediction)
     except Exception as e:
         print(e)
-    
+
     return prediction, normal_prob
 
 @app.route('/models', methods=['GET'])
@@ -80,7 +80,7 @@ def handle_single_report(json_object):
 
 
     if model_name not in model_store.keys():
-        msg = { 
+        msg = {
                 "msg": "Unknown model {}".format(model_name)
               }
         code = 400
@@ -93,7 +93,7 @@ def handle_single_report(json_object):
             msg = {
                         "msg": "Not enough data, at least {} counts required".format(look_back)
                   }
-            code = 400 
+            code = 400
 
 
         else:
@@ -108,7 +108,7 @@ def handle_single_report(json_object):
                 num_anamolous_timesteps_store[model_name] = 0
 
             msg = {
-                    "predictedEventCount":  int(np.exp(predicted_event_count)), 
+                    "predictedEventCount":  int(np.exp(predicted_event_count)),
                     "probNormalBehavior": "{:.5f}".format(prob_normal_behavior),
                     "numAnomalousTimesteps": int(num_anamolous_timesteps_store[model_name]),
                    }
@@ -127,9 +127,9 @@ CODE = 1
 @app.route("/report", methods=['POST'])
 def report():
     try:
-        calls = None 
+        calls = None
         responses = []
-        
+
         if type(request.json) is dict:
             calls = [request.json]
         elif type(request.json) is list:
@@ -148,5 +148,4 @@ def report():
             return jsonify(responses), 200
 
     except:
-        return "Error: {}".format(sys.exc_info()[0]), 400 
-
+        return "Error: {}".format(sys.exc_info()[0]), 400
